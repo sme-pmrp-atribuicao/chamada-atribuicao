@@ -206,16 +206,10 @@
       document.getElementById('statusBar').textContent = 'Reiniciando chamadas...';
 
       try {
-        const res = await fetch(montarUrl({ action: 'reset' }));
-        const data = await res.json();
-        if (data && data.listas) {
-          estadoGlobal = data;
-          atualizarSelectCargos();
-          document.getElementById('statusBar').textContent = 'Chamadas reiniciadas do zero!';
-        } else {
-          await carregarEstado();
-          document.getElementById('statusBar').textContent = 'Verifique se o reset está configurado no Apps Script.';
-        }
+        const res = await fetch(montarUrl({ action: 'resetar' }));
+        estadoGlobal = await res.json();
+        atualizarSelectCargos();
+        document.getElementById('statusBar').textContent = 'Chamadas reiniciadas do zero!';
       } catch (e) {
         alert('Falha ao reiniciar. Verifique a internet.');
       } finally {
