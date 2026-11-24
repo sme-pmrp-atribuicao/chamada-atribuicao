@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chamador - Atendente</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; background: #0f172a; color: #f8fafc; padding: 16px; }
+    .container { max-width: 480px; margin: 0 auto; }
+    h1 { font-size: 1.25rem; margin: 0 0 14px; color: #38bdf8; text-align: center; }
+    .card { background: #1e293b; border-radius: 14px; padding: 16px; margin-bottom: 14px; border: 1px solid #334155; }
+    label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 6px; font-weight: 600; }
+    select, input {
+      width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #475569;
+      background: #0f172a; color: #fff; font-size: 1rem; margin-bottom: 12px;
+    }
+    .atual-box { text-align: center; padding: 14px; background: #0f172a; border-radius: 10px; border: 1px solid #38bdf8; }
+    .atual-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #38bdf8; }
+    .atual-nome { font-size: 1.35rem; font-weight: 800; margin: 6px 0; color: #fff; }
+    .atual-info { font-size: 0.85rem; color: #94a3b8; }
+    .proximo-box { margin-top: 10px; font-size: 0.9rem; color: #cbd5e1; text-align: center; }
+    button {
+      width: 100%; padding: 16px; border: none; border-radius: 12px;
+      font-size: 1.05rem; font-weight: 700; cursor: pointer; margin-bottom: 10px;
+      transition: transform 0.08s ease, opacity 0.2s;
+    }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: #16a34a; color: #fff; font-size: 1.2rem; }
+    .btn-repeat { background: #0284c7; color: #fff; }
+    .btn-back { background: #334155; color: #cbd5e1; font-size: 0.9rem; padding: 12px; }
+    .fila-lista { max-height: 200px; overflow-y: auto; font-size: 0.88rem; color: #cbd5e1; padding-left: 18px; }
+    .fila-lista li { margin-bottom: 4px; }
+    .status-bar { text-align: center; font-size: 0.8rem; color: #94a3b8; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Controle de Chamada • SME</h1>
+
+    <div class="card">
+      <label for="mesaInput">Sua Mesa / Guichê</label>
+      <input type="text" id="mesaInput" placeholder="Ex: Mesa 01" value="Mesa 01" />
+
+      <label for="cargoSelect">Lista / Cargo Ativo</label>
+      <select id="cargoSelect"></select>
+    </div>
+
+    <div class="card">
+      <div class="atual-box">
+        <div class="atual-label">Chamado Atual</div>
+        <div class="atual-nome" id="atualNome">—</div>
+        <div class="atual-info" id="atualInfo">Aguardando início</div>
+      </div>
+
+      <div class="proximo-box" id="proximoBox">Próximo: —</div>
+    </div>
+
+    <button class="btn-primary" id="btnChamar" onclick="acao('chamar')">CHAMAR PRÓXIMO</button>
+    <button class="btn-repeat" id="btnRepetir" onclick="acao('repetir')">CHAMAR NOVAMENTE</button>
+    <button class="btn-back" id="btnVoltar" onclick="acao('voltar')">Voltar 1 posição (correção)</button>
+
+    <div class="card">
+      <label>Próximos na fila</label>
+      <ol class="fila-lista" id="filaRestante"></ol>
+    </div>
+
+    <div class="status-bar" id="statusBar">Sincronizando...</div>
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbyxBYfub-1kBUYrSyzELTTHtZzcgZN6FpLOBMwDSavQaRic3PS-ByPxwpJrf2kvb9rz/exec";
+
+    let estadoGlobal = null;
+    let carregando = false;
+
+    const cargoSelect = document.getElementById('cargoSelect');
+    const mesaInput = document.getElementById('mesaInput');
+
+    mesaInput.value = localStorage.getItem('sme_mesa') || 'Mesa 01';
+    mesaInput.addEventListener('change', () => localStorage.setItem('sme_mesa', mesaInput.value));
+    cargoSelect.addEventListener('change', () => {
+      localStorage.setItem('sme_cargo', cargoSelect.value);
+      renderizar();
+    });
+
+    function montarUrl(paramsObj = {}) {
+      const url = new URL(API_URL);
+      url.searchParams.set('modulo', 'chamada');
+      Object.entries(paramsObj).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) url.searchParams.set(k, v);
+      });
+      return url.toString();
+    }
+
+    async function carregarEstado() {
+      if (carregando) return;
+      try {
+        const res = await fetch(montarUrl({ action: 'status' }));
+        estadoGlobal = await res.json();
+        atualizarSelectCargos();
+        renderizar();
+        document.getElementById('statusBar').textContent = 'Conectado • Atualizado agora';
+      } catch (e) {
+        document.getElementById('statusBar').textContent = 'Erro de conexão. Tentando novamente...';
+      }
+    }
+
+    function atualizarSelectCargos() {
+      if (!estadoGlobal || !estadoGlobal.listas) return;
+      const cargoSalvo = localStorage.getItem('sme_cargo');
+      const valorAtual = cargoSelect.value || cargoSalvo;
+
+      cargoSelect.innerHTML = '';
+      estadoGlobal.listas.forEach(lista => {
+        const opt = document.createElement('option');
+        opt.value = lista.cargo;
+        opt.textContent = `${lista.cargo} (${lista.indiceAtual}/${lista.total})`;
+        cargoSelect.appendChild(opt);
+      });
+
+      if ([...cargoSelect.options].some(o => o.value === valorAtual)) {
+        cargoSelect.value = valorAtual;
+      }
+    }
+
+    function renderizar() {
+      if (!estadoGlobal || !estadoGlobal.listas) return;
+      const lista = estadoGlobal.listas.find(l => l.cargo === cargoSelect.value);
+      if (!lista) return;
+
+      document.getElementById('atualNome').textContent = lista.atual || 'Ninguém chamado';
+      document.getElementById('atualInfo').textContent = lista.atual
+        ? `Posição ${lista.indiceAtual} de ${lista.total} • ${lista.mesa}`
+        : `Total na lista: ${lista.total}`;
+
+      document.getElementById('proximoBox').innerHTML = lista.proximo
+        ? `Próximo: <strong>${lista.proximo}</strong>`
+        : `<strong>Fim da lista!</strong>`;
+
+      document.getElementById('btnChamar').disabled = !lista.proximo || carregando;
+      document.getElementById('btnRepetir').disabled = !lista.atual || carregando;
+      document.getElementById('btnVoltar').disabled = lista.indiceAtual === 0 || carregando;
+
+      const ol = document.getElementById('filaRestante');
+      ol.innerHTML = '';
+      ol.start = lista.indiceAtual + 1;
+      lista.filaRestante.forEach(nome => {
+        const li = document.createElement('li');
+        li.textContent = nome;
+        ol.appendChild(li);
+      });
+    }
+
+    async function acao(tipo) {
+      if (carregando) return;
+      const cargo = cargoSelect.value;
+      const mesa = mesaInput.value.trim() || 'Mesa 1';
+      if (!cargo) return;
+
+      if (tipo === 'voltar' && !confirm('Deseja realmente voltar 1 nome nesta lista?')) return;
+
+      carregando = true;
+      renderizar();
+      document.getElementById('statusBar').textContent = 'Enviando chamada...';
+
+      const params = { cargo, mesa };
+      if (tipo === 'chamar') params.action = 'chamar';
+      if (tipo === 'repetir') {
+        params.action = 'chamar';
+        params.repetir = 'true';
+      }
+      if (tipo === 'voltar') params.action = 'voltar';
+
+      try {
+        const res = await fetch(montarUrl(params));
+        estadoGlobal = await res.json();
+        atualizarSelectCargos();
+        document.getElementById('statusBar').textContent = 'Chamada realizada!';
+      } catch (e) {
+        alert('Falha ao registrar chamada. Verifique a internet.');
+      } finally {
+        carregando = false;
+        renderizar();
+      }
+    }
+
+    carregarEstado();
+    setInterval(carregarEstado, 3000);
+  </script>
+</body>
+</html>

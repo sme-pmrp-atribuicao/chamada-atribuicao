@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel de Chamada - Sala de Espera</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body {
+      margin: 0; background: #020617; color: #f8fafc;
+      height: 100vh; display: flex; flex-direction: column; padding: 24px; overflow: hidden;
+    }
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 2px solid #1e293b; padding-bottom: 12px; margin-bottom: 20px;
+    }
+    header h1 { margin: 0; font-size: 1.6rem; color: #38bdf8; letter-spacing: 0.5px; }
+    .btn-som {
+      background: #1e293b; color: #f8fafc; border: 1px solid #38bdf8;
+      padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600;
+    }
+    .destaque {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border: 3px solid #38bdf8; border-radius: 20px; padding: 32px;
+      text-align: center; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      transition: all 0.3s ease;
+    }
+    .destaque.piscar {
+      background: #0369a1; border-color: #fde047; transform: scale(1.01);
+    }
+    .destaque-tag {
+      display: inline-block; background: #38bdf8; color: #020617;
+      font-weight: 800; padding: 6px 18px; border-radius: 999px;
+      font-size: 1.2rem; text-transform: uppercase; margin-bottom: 14px;
+    }
+    .destaque-nome {
+      font-size: clamp(2.2rem, 4.5vw, 4.2rem); font-weight: 900;
+      margin: 10px 0; color: #ffffff; line-height: 1.1;
+    }
+    .destaque-mesa {
+      font-size: clamp(1.4rem, 2.5vw, 2.2rem); font-weight: 700; color: #fde047; margin-top: 8px;
+    }
+    .grid-listas {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px; flex: 1;
+    }
+    .card-lista {
+      background: #0f172a; border: 1px solid #334155; border-radius: 16px;
+      padding: 18px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .card-cargo {
+      font-size: 1.1rem; font-weight: 800; color: #38bdf8;
+      border-bottom: 1px solid #1e293b; padding-bottom: 8px; margin-bottom: 10px;
+      display: flex; justify-content: space-between;
+    }
+    .card-atual { font-size: 1.45rem; font-weight: 800; color: #fff; margin: 8px 0; }
+    .card-mesa { font-size: 1rem; color: #fde047; font-weight: 700; }
+    .card-proximo {
+      margin-top: 12px; padding-top: 8px; border-top: 1px dashed #334155;
+      font-size: 0.9rem; color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ATRIBUIÇÃO DE AULAS • COMPLETA JORNADA</h1>
+    <button class="btn-som" id="btnSom" onclick="ativarSom()">Ativar Som</button>
+  </header>
+
+  <section class="destaque" id="boxDestaque">
+    <div class="destaque-tag" id="destaqueCargo">AGUARDANDO CHAMADA</div>
+    <div class="destaque-nome" id="destaqueNome">—</div>
+    <div class="destaque-mesa" id="destaqueMesa">Fique atento ao painel</div>
+  </section>
+
+  <section class="grid-listas" id="gridListas"></section>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbyxBYfub-1kBUYrSyzELTTHtZzcgZN6FpLOBMwDSavQaRic3PS-ByPxwpJrf2kvb9rz/exec";
+
+    let ultimoCallId = null;
+    let primeiraCarga = true;
+    let somAtivo = false;
+    let audioCtx = null;
+
+    function ativarSom() {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      somAtivo = true;
+      const btn = document.getElementById('btnSom');
+      btn.textContent = 'Som Ativado';
+      btn.style.background = '#16a34a';
+      tocarCampainha();
+    }
+
+    function tocarCampainha() {
+      if (!somAtivo || !audioCtx) return;
+      const agora = audioCtx.currentTime;
+      [660, 523.25].forEach((freq, idx) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, agora + idx * 0.25);
+        gain.gain.setValueAtTime(0.3, agora + idx * 0.25);
+        gain.gain.exponentialRampToValueAtTime(0.001, agora + idx * 0.25 + 0.6);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(agora + idx * 0.25);
+        osc.stop(agora + idx * 0.25 + 0.6);
+      });
+    }
+
+    function montarUrlStatus() {
+      const url = new URL(API_URL);
+      url.searchParams.set('modulo', 'chamada');
+      url.searchParams.set('action', 'status');
+      return url.toString();
+    }
+
+    async function atualizarPainel() {
+      try {
+        const res = await fetch(montarUrlStatus());
+        const data = await res.json();
+        if (!data.ok) return;
+
+        if (data.ultimaChamada) {
+          const u = data.ultimaChamada;
+          document.getElementById('destaqueCargo').textContent = u.cargo;
+          document.getElementById('destaqueNome').textContent = u.nome;
+          document.getElementById('destaqueMesa').textContent = `${u.mesa} • (${u.posicao}º da lista)`;
+
+          if (!primeiraCarga && ultimoCallId !== u.callId) {
+            tocarCampainha();
+            const box = document.getElementById('boxDestaque');
+            box.classList.add('piscar');
+            setTimeout(() => box.classList.remove('piscar'), 2500);
+          }
+          ultimoCallId = u.callId;
+          primeiraCarga = false;
+        } else {
+          primeiraCarga = false;
+        }
+
+        const grid = document.getElementById('gridListas');
+        grid.innerHTML = '';
+        data.listas.forEach(lista => {
+          const card = document.createElement('div');
+          card.className = 'card-lista';
+          card.innerHTML = `
+            <div>
+              <div class="card-cargo">
+                <span>${lista.cargo}</span>
+                <span>${lista.indiceAtual}/${lista.total}</span>
+              </div>
+              <div class="card-atual">${lista.atual || 'Aguardando'}</div>
+              <div class="card-mesa">${lista.atual ? lista.mesa : ''}</div>
+            </div>
+            <div class="card-proximo">
+              Próximo: <strong>${lista.proximo || 'Fim da lista'}</strong>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+      } catch (e) {
+        console.error('Erro ao atualizar painel:', e);
+      }
+    }
+
+    atualizarPainel();
+    setInterval(atualizarPainel, 2500);
+  </script>
+</body>
+</html>
