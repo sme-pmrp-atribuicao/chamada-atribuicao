@@ -37,7 +37,7 @@
       font-size: clamp(2.2rem, 4.5vw, 4.2rem); font-weight: 900;
       margin: 10px 0; color: #ffffff; line-height: 1.1;
     }
-    .destaque-mesa {
+    .destaque-atendente {
       font-size: clamp(1.4rem, 2.5vw, 2.2rem); font-weight: 700; color: #fde047; margin-top: 8px;
     }
     .grid-listas {
@@ -54,7 +54,7 @@
       display: flex; justify-content: space-between;
     }
     .card-atual { font-size: 1.45rem; font-weight: 800; color: #fff; margin: 8px 0; }
-    .card-mesa { font-size: 1rem; color: #fde047; font-weight: 700; }
+    .card-atendente { font-size: 1rem; color: #fde047; font-weight: 700; }
     .card-proximo {
       margin-top: 12px; padding-top: 8px; border-top: 1px dashed #334155;
       font-size: 0.9rem; color: #94a3b8;
@@ -70,7 +70,7 @@
   <section class="destaque" id="boxDestaque">
     <div class="destaque-tag" id="destaqueCargo">AGUARDANDO CHAMADA</div>
     <div class="destaque-nome" id="destaqueNome">—</div>
-    <div class="destaque-mesa" id="destaqueMesa">Fique atento ao painel</div>
+    <div class="destaque-atendente" id="destaqueAtendente">Fique atento ao painel</div>
   </section>
 
   <section class="grid-listas" id="gridListas"></section>
@@ -90,6 +90,7 @@
       btn.textContent = 'Som Ativado';
       btn.style.background = '#16a34a';
       tocarCampainha();
+      falarTexto('Som ativado.');
     }
 
     function tocarCampainha() {
@@ -109,6 +110,43 @@
       });
     }
 
+    function primeiroEUltimoNome(nomeCompleto) {
+      if (!nomeCompleto) return '';
+      const partes = String(nomeCompleto).trim().split(/\s+/).filter(Boolean);
+      if (partes.length === 0) return '';
+      if (partes.length === 1) return partes[0];
+      return `${partes[0]} ${partes[partes.length - 1]}`;
+    }
+
+    function falarTexto(texto) {
+      if (!somAtivo || !('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(texto);
+        utter.lang = 'pt-BR';
+        utter.rate = 0.98;
+        utter.pitch = 1;
+        utter.volume = 1;
+
+        const vozes = window.speechSynthesis.getVoices();
+        const vozPt = vozes.find(v => v.lang && v.lang.toLowerCase().startsWith('pt'));
+        if (vozPt) utter.voice = vozPt;
+
+        window.speechSynthesis.speak(utter);
+      } catch (e) {
+        console.warn('Falha ao reproduzir voz:', e);
+      }
+    }
+
+    function anunciarChamada(chamada) {
+      if (!somAtivo) return;
+      const nomeCurto = primeiroEUltimoNome(chamada.nome);
+      const cargo = chamada.cargo ? `cargo ${chamada.cargo}` : '';
+      const partesFrase = ['Atenção', nomeCurto, cargo].filter(Boolean);
+      const frase = `${partesFrase.join(', ')}.`;
+      setTimeout(() => falarTexto(frase), 550);
+    }
+
     function montarUrlStatus() {
       const url = new URL(API_URL);
       url.searchParams.set('modulo', 'chamada');
@@ -124,12 +162,15 @@
 
         if (data.ultimaChamada) {
           const u = data.ultimaChamada;
+          const responsavel = u.atendente || u.mesa || '';
           document.getElementById('destaqueCargo').textContent = u.cargo;
           document.getElementById('destaqueNome').textContent = u.nome;
-          document.getElementById('destaqueMesa').textContent = `${u.mesa} • (${u.posicao}º da lista)`;
+          document.getElementById('destaqueAtendente').textContent =
+            `Atendente: ${responsavel || '—'} • (${u.posicao}º da lista)`;
 
           if (!primeiraCarga && ultimoCallId !== u.callId) {
             tocarCampainha();
+            anunciarChamada(u);
             const box = document.getElementById('boxDestaque');
             box.classList.add('piscar');
             setTimeout(() => box.classList.remove('piscar'), 2500);
@@ -143,6 +184,7 @@
         const grid = document.getElementById('gridListas');
         grid.innerHTML = '';
         data.listas.forEach(lista => {
+          const responsavelLista = lista.atendente || lista.mesa || '';
           const card = document.createElement('div');
           card.className = 'card-lista';
           card.innerHTML = `
@@ -152,7 +194,7 @@
                 <span>${lista.indiceAtual}/${lista.total}</span>
               </div>
               <div class="card-atual">${lista.atual || 'Aguardando'}</div>
-              <div class="card-mesa">${lista.atual ? lista.mesa : ''}</div>
+              <div class="card-atendente">${lista.atual && responsavelLista ? `Atendente: ${responsavelLista}` : ''}</div>
             </div>
             <div class="card-proximo">
               Próximo: <strong>${lista.proximo || 'Fim da lista'}</strong>
@@ -163,6 +205,10 @@
       } catch (e) {
         console.error('Erro ao atualizar painel:', e);
       }
+    }
+
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
     }
 
     atualizarPainel();
