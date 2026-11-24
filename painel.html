@@ -8,8 +8,8 @@
     * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
     body {
       margin: 0; background: #020617; color: #f8fafc;
-      min-height: 100vh; display: flex; flex-direction: column; padding: 24px;
-      gap: 20px;
+      height: 100vh; display: flex; flex-direction: column; padding: 24px;
+      gap: 20px; overflow: hidden;
     }
     header {
       display: flex; justify-content: space-between; align-items: center;
@@ -22,7 +22,7 @@
     }
     .destaque {
       background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      border: 3px solid #38bdf8; border-radius: 20px; padding: 28px 32px;
+      border: 3px solid #38bdf8; border-radius: 20px; padding: 30px 32px;
       text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       transition: all 0.3s ease;
     }
@@ -32,69 +32,35 @@
     .destaque-tag {
       display: inline-block; background: #38bdf8; color: #020617;
       font-weight: 800; padding: 6px 18px; border-radius: 999px;
-      font-size: 1.1rem; text-transform: uppercase; margin-bottom: 12px;
+      font-size: 1.15rem; text-transform: uppercase; margin-bottom: 12px;
     }
     .destaque-nome {
-      font-size: clamp(2.2rem, 4.5vw, 4rem); font-weight: 900;
+      font-size: clamp(2.4rem, 4.8vw, 4.4rem); font-weight: 900;
       margin: 8px 0; color: #ffffff; line-height: 1.1;
     }
     .destaque-atendente {
-      font-size: clamp(1.3rem, 2.2vw, 1.9rem); font-weight: 700; color: #fde047; margin-top: 8px;
+      font-size: clamp(1.35rem, 2.3vw, 2rem); font-weight: 700; color: #fde047; margin-top: 8px;
     }
     .grid-listas {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 14px;
+      gap: 16px; flex: 1; align-content: start;
     }
     .card-lista {
       background: #0f172a; border: 1px solid #334155; border-radius: 16px;
-      padding: 16px; display: flex; flex-direction: column; justify-content: space-between;
+      padding: 18px; display: flex; flex-direction: column; justify-content: space-between;
+      min-height: 150px;
     }
     .card-cargo {
-      font-size: 1.05rem; font-weight: 800; color: #38bdf8;
+      font-size: 1.08rem; font-weight: 800; color: #38bdf8;
       border-bottom: 1px solid #1e293b; padding-bottom: 8px; margin-bottom: 10px;
       display: flex; justify-content: space-between;
     }
-    .card-atual { font-size: 1.35rem; font-weight: 800; color: #fff; margin: 6px 0; }
-    .card-atendente { font-size: 0.95rem; color: #fde047; font-weight: 700; }
+    .card-atual { font-size: 1.4rem; font-weight: 800; color: #fff; margin: 6px 0; }
+    .card-atendente { font-size: 0.98rem; color: #fde047; font-weight: 700; }
     .card-proximo {
-      margin-top: 10px; padding-top: 8px; border-top: 1px dashed #334155;
-      font-size: 0.88rem; color: #94a3b8;
+      margin-top: 12px; padding-top: 8px; border-top: 1px dashed #334155;
+      font-size: 0.9rem; color: #94a3b8;
     }
-    .historico-box {
-      background: #0f172a; border: 1px solid #334155; border-radius: 16px;
-      padding: 18px 20px;
-    }
-    .historico-titulo {
-      font-size: 0.95rem; font-weight: 800; text-transform: uppercase;
-      letter-spacing: 0.6px; color: #94a3b8; margin-bottom: 12px;
-    }
-    .historico-lista {
-      display: flex; flex-direction: column; gap: 8px;
-    }
-    .historico-item {
-      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-      gap: 10px; padding: 12px 16px; border-radius: 12px;
-      background: #1e293b; border: 1px solid #334155; color: #cbd5e1;
-      font-size: 1rem;
-    }
-    .historico-item.em-atendimento {
-      background: #0c4a6e; border: 2px solid #fde047; color: #ffffff;
-      font-size: 1.15rem; font-weight: 800;
-    }
-    .badge-status {
-      padding: 4px 10px; border-radius: 999px; font-size: 0.78rem;
-      font-weight: 800; text-transform: uppercase;
-    }
-    .badge-ativo {
-      background: #fde047; color: #020617;
-    }
-    .badge-anterior {
-      background: #334155; color: #cbd5e1;
-    }
-    .hist-cargo { color: #38bdf8; font-weight: 700; }
-    .historico-item.em-atendimento .hist-cargo { color: #fde047; }
-    .hist-atendente { color: #94a3b8; font-size: 0.92rem; }
-    .historico-item.em-atendimento .hist-atendente { color: #e2e8f0; }
   </style>
 </head>
 <body>
@@ -111,13 +77,6 @@
 
   <section class="grid-listas" id="gridListas"></section>
 
-  <section class="historico-box">
-    <div class="historico-titulo">Últimos Chamados</div>
-    <div class="historico-lista" id="historicoLista">
-      <div class="historico-item">Nenhuma chamada registrada ainda.</div>
-    </div>
-  </section>
-
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbyxBYfub-1kBUYrSyzELTTHtZzcgZN6FpLOBMwDSavQaRic3PS-ByPxwpJrf2kvb9rz/exec";
 
@@ -125,7 +84,10 @@
     let primeiraCarga = true;
     let somAtivo = false;
     let audioCtx = null;
-    let historicoChamadas = [];
+
+    // Fila sequencial para nunca cortar uma fala pela outra
+    const filaFala = [];
+    let falandoAgora = false;
 
     function ativarSom() {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -134,7 +96,7 @@
       btn.textContent = 'Som Ativado';
       btn.style.background = '#16a34a';
       tocarCampainha();
-      falarTexto('Som ativado.');
+      enfileirarFala('Som ativado.');
     }
 
     function tocarCampainha() {
@@ -162,10 +124,18 @@
       return `${partes[0]} ${partes[partes.length - 1]}`;
     }
 
-    function falarTexto(texto) {
-      if (!somAtivo || !('speechSynthesis' in window)) return;
+    function processarProximaFala() {
+      if (!somAtivo || !('speechSynthesis' in window)) {
+        filaFala.length = 0;
+        falandoAgora = false;
+        return;
+      }
+      if (falandoAgora || filaFala.length === 0) return;
+
+      falandoAgora = true;
+      const texto = filaFala.shift();
+
       try {
-        window.speechSynthesis.cancel();
         const utter = new SpeechSynthesisUtterance(texto);
         utter.lang = 'pt-BR';
         utter.rate = 0.98;
@@ -176,10 +146,26 @@
         const vozPt = vozes.find(v => v.lang && v.lang.toLowerCase().startsWith('pt'));
         if (vozPt) utter.voice = vozPt;
 
+        utter.onend = () => {
+          falandoAgora = false;
+          setTimeout(processarProximaFala, 350);
+        };
+        utter.onerror = () => {
+          falandoAgora = false;
+          setTimeout(processarProximaFala, 350);
+        };
+
         window.speechSynthesis.speak(utter);
       } catch (e) {
-        console.warn('Falha ao reproduzir voz:', e);
+        falandoAgora = false;
+        setTimeout(processarProximaFala, 350);
       }
+    }
+
+    function enfileirarFala(texto) {
+      if (!somAtivo || !texto) return;
+      filaFala.push(texto);
+      processarProximaFala();
     }
 
     function anunciarChamada(chamada) {
@@ -188,7 +174,7 @@
       const cargo = chamada.cargo ? `cargo ${chamada.cargo}` : '';
       const partesFrase = ['Atenção', nomeCurto, cargo].filter(Boolean);
       const frase = `${partesFrase.join(', ')}.`;
-      setTimeout(() => falarTexto(frase), 550);
+      setTimeout(() => enfileirarFala(frase), 500);
     }
 
     function montarUrlStatus() {
@@ -198,48 +184,6 @@
       return url.toString();
     }
 
-    function registrarNoHistorico(chamada) {
-      if (!chamada || !chamada.nome) return;
-      const responsavel = chamada.atendente || chamada.mesa || '';
-      const chave = chamada.callId || `${chamada.cargo}|${chamada.nome}|${responsavel}`;
-      const existenteIdx = historicoChamadas.findIndex(item => item.chave === chave);
-      if (existenteIdx !== -1) {
-        historicoChamadas.splice(existenteIdx, 1);
-      }
-      historicoChamadas.unshift({
-        chave,
-        nome: chamada.nome,
-        cargo: chamada.cargo || '',
-        atendente: responsavel
-      });
-      historicoChamadas = historicoChamadas.slice(0, 8);
-      renderizarHistorico();
-    }
-
-    function renderizarHistorico() {
-      const container = document.getElementById('historicoLista');
-      if (!historicoChamadas.length) {
-        container.innerHTML = '<div class="historico-item">Nenhuma chamada registrada ainda.</div>';
-        return;
-      }
-
-      container.innerHTML = historicoChamadas.map((item, idx) => {
-        const ehAtual = idx === 0;
-        return `
-          <div class="historico-item ${ehAtual ? 'em-atendimento' : ''}">
-            <div>
-              <span>${item.nome}</span>
-              ${item.cargo ? ` • <span class="hist-cargo">${item.cargo}</span>` : ''}
-              ${item.atendente ? ` • <span class="hist-atendente">Atendente: ${item.atendente}</span>` : ''}
-            </div>
-            <span class="badge-status ${ehAtual ? 'badge-ativo' : 'badge-anterior'}">
-              ${ehAtual ? 'Em atendimento' : 'Chamado anterior'}
-            </span>
-          </div>
-        `;
-      }).join('');
-    }
-
     async function atualizarPainel() {
       try {
         const res = await fetch(montarUrlStatus());
@@ -247,8 +191,6 @@
         if (!data.ok) return;
 
         if (!data.ultimaChamada && (!data.listas || data.listas.every(l => !l.atual))) {
-          historicoChamadas = [];
-          renderizarHistorico();
           document.getElementById('destaqueCargo').textContent = 'AGUARDANDO CHAMADA';
           document.getElementById('destaqueNome').textContent = '—';
           document.getElementById('destaqueAtendente').textContent = 'Fique atento ao painel';
@@ -260,9 +202,7 @@
           document.getElementById('destaqueCargo').textContent = u.cargo;
           document.getElementById('destaqueNome').textContent = u.nome;
           document.getElementById('destaqueAtendente').textContent =
-            responsavel ? `Atendente: ${responsavel}` : 'Em atendimento';
-
-          registrarNoHistorico(u);
+            responsavel ? `Atendente: ${responsavel}` : '';
 
           if (!primeiraCarga && ultimoCallId !== u.callId) {
             tocarCampainha();
