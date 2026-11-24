@@ -16,6 +16,12 @@
       border-bottom: 2px solid #1e293b; padding-bottom: 12px;
     }
     header h1 { margin: 0; font-size: 1.6rem; color: #38bdf8; letter-spacing: 0.5px; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .fila-badge {
+      background: #1e293b; border: 1px solid #fde047; color: #fde047;
+      padding: 6px 14px; border-radius: 999px; font-size: 0.9rem; font-weight: 700;
+      display: none;
+    }
     .btn-som {
       background: #1e293b; color: #f8fafc; border: 1px solid #38bdf8;
       padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600;
@@ -66,7 +72,10 @@
 <body>
   <header>
     <h1>ATRIBUIÇÃO DE AULAS • COMPLETA JORNADA</h1>
-    <button class="btn-som" id="btnSom" onclick="ativarSom()">Ativar Som</button>
+    <div class="header-right">
+      <span class="fila-badge" id="filaBadge">Na fila: 0</span>
+      <button class="btn-som" id="btnSom" onclick="ativarSom()">Ativar Som</button>
+    </div>
   </header>
 
   <section class="destaque" id="boxDestaque">
@@ -80,14 +89,24 @@
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbyxBYfub-1kBUYrSyzELTTHtZzcgZN6FpLOBMwDSavQaRic3PS-ByPxwpJrf2kvb9rz/exec";
 
-    let ultimoCallId = null;
     let primeiraCarga = true;
     let somAtivo = false;
     let audioCtx = null;
 
-    // Fila sequencial para nunca cortar uma fala pela outra
-    const filaFala = [];
-    let falandoAgora = false;
+    const idsConhecidos = new Set();
+    const filaChamadas = [];
+    let processandoChamada = false;
+
+    function atualizarBadgeFila() {
+      const badge = document.getElementById('filaBadge');
+      const pendentes = filaChamadas.length;
+      if (pendentes > 0) {
+        badge.style.display = 'inline-block';
+        badge.textContent = `Aguardando leitura: ${pendentes}`;
+      } else {
+        badge.style.display = 'none';
+      }
+    }
 
     function ativarSom() {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -95,12 +114,16 @@
       const btn = document.getElementById('btnSom');
       btn.textContent = 'Som Ativado';
       btn.style.background = '#16a34a';
-      tocarCampainha();
-      enfileirarFala('Som ativado.');
+      tocarCampainha(() => {
+        falarTexto('Som ativado.', () => {});
+      });
     }
 
-    function tocarCampainha() {
-      if (!somAtivo || !audioCtx) return;
+    function tocarCampainha(aoTerminar) {
+      if (!somAtivo || !audioCtx) {
+        if (typeof aoTerminar === 'function') aoTerminar();
+        return;
+      }
       const agora = audioCtx.currentTime;
       [660, 523.25].forEach((freq, idx) => {
         const osc = audioCtx.createOscillator();
@@ -114,6 +137,9 @@
         osc.start(agora + idx * 0.25);
         osc.stop(agora + idx * 0.25 + 0.6);
       });
+      setTimeout(() => {
+        if (typeof aoTerminar === 'function') aoTerminar();
+      }, 650);
     }
 
     function primeiroEUltimoNome(nomeCompleto) {
@@ -124,16 +150,15 @@
       return `${partes[0]} ${partes[partes.length - 1]}`;
     }
 
-    function processarProximaFala() {
+    function falarTexto(texto, aoTerminar) {
+      const concluir = () => {
+        if (typeof aoTerminar === 'function') aoTerminar();
+      };
+
       if (!somAtivo || !('speechSynthesis' in window)) {
-        filaFala.length = 0;
-        falandoAgora = false;
+        setTimeout(concluir, 1200);
         return;
       }
-      if (falandoAgora || filaFala.length === 0) return;
-
-      falandoAgora = true;
-      const texto = filaFala.shift();
 
       try {
         const utter = new SpeechSynthesisUtterance(texto);
@@ -146,35 +171,61 @@
         const vozPt = vozes.find(v => v.lang && v.lang.toLowerCase().startsWith('pt'));
         if (vozPt) utter.voice = vozPt;
 
-        utter.onend = () => {
-          falandoAgora = false;
-          setTimeout(processarProximaFala, 350);
+        let finalizou = false;
+        const encerrarUmaVez = () => {
+          if (finalizou) return;
+          finalizou = true;
+          clearTimeout(timerSeguranca);
+          setTimeout(concluir, 400);
         };
-        utter.onerror = () => {
-          falandoAgora = false;
-          setTimeout(processarProximaFala, 350);
-        };
+
+        // Fallback caso algum navegador não dispare onend em algumas vozes
+        const estimativaMs = Math.max(2200, texto.length * 95);
+        const timerSeguranca = setTimeout(encerrarUmaVez, estimativaMs);
+
+        utter.onend = encerrarUmaVez;
+        utter.onerror = encerrarUmaVez;
 
         window.speechSynthesis.speak(utter);
       } catch (e) {
-        falandoAgora = false;
-        setTimeout(processarProximaFala, 350);
+        setTimeout(concluir, 1200);
       }
     }
 
-    function enfileirarFala(texto) {
-      if (!somAtivo || !texto) return;
-      filaFala.push(texto);
-      processarProximaFala();
+    function exibirDestaqueChamada(chamada, piscar) {
+      const responsavel = chamada.atendente || chamada.mesa || '';
+      document.getElementById('destaqueCargo').textContent = chamada.cargo || 'CHAMADA';
+      document.getElementById('destaqueNome').textContent = chamada.nome || '—';
+      document.getElementById('destaqueAtendente').textContent =
+        responsavel ? `Atendente: ${responsavel}` : '';
+
+      if (piscar) {
+        const box = document.getElementById('boxDestaque');
+        box.classList.add('piscar');
+        setTimeout(() => box.classList.remove('piscar'), 2500);
+      }
     }
 
-    function anunciarChamada(chamada) {
-      if (!somAtivo) return;
+    function processarFilaChamadas() {
+      atualizarBadgeFila();
+      if (processandoChamada || filaChamadas.length === 0) return;
+
+      processandoChamada = true;
+      const chamada = filaChamadas.shift();
+      atualizarBadgeFila();
+
+      exibirDestaqueChamada(chamada, true);
+
       const nomeCurto = primeiroEUltimoNome(chamada.nome);
       const cargo = chamada.cargo ? `cargo ${chamada.cargo}` : '';
-      const partesFrase = ['Atenção', nomeCurto, cargo].filter(Boolean);
-      const frase = `${partesFrase.join(', ')}.`;
-      setTimeout(() => enfileirarFala(frase), 500);
+      const frase = `${['Atenção', nomeCurto, cargo].filter(Boolean).join(', ')}.`;
+
+      tocarCampainha(() => {
+        falarTexto(frase, () => {
+          processandoChamada = false;
+          processarFilaChamadas();
+        });
+      });
     }
 
     function montarUrlStatus() {
@@ -190,31 +241,50 @@
         const data = await res.json();
         if (!data.ok) return;
 
-        if (!data.ultimaChamada && (!data.listas || data.listas.every(l => !l.atual))) {
-          document.getElementById('destaqueCargo').textContent = 'AGUARDANDO CHAMADA';
-          document.getElementById('destaqueNome').textContent = '—';
-          document.getElementById('destaqueAtendente').textContent = 'Fique atento ao painel';
-          ultimoCallId = null;
-          primeiraCarga = false;
-        } else if (data.ultimaChamada) {
-          const u = data.ultimaChamada;
-          const responsavel = u.atendente || u.mesa || '';
-          document.getElementById('destaqueCargo').textContent = u.cargo;
-          document.getElementById('destaqueNome').textContent = u.nome;
-          document.getElementById('destaqueAtendente').textContent =
-            responsavel ? `Atendente: ${responsavel}` : '';
+        const recentes = Array.isArray(data.chamadasRecentes) ? data.chamadasRecentes : [];
 
-          if (!primeiraCarga && ultimoCallId !== u.callId) {
-            tocarCampainha();
-            anunciarChamada(u);
-            const box = document.getElementById('boxDestaque');
-            box.classList.add('piscar');
-            setTimeout(() => box.classList.remove('piscar'), 2500);
+        if (primeiraCarga) {
+          recentes.forEach(item => {
+            if (item && item.callId) idsConhecidos.add(item.callId);
+          });
+          if (data.ultimaChamada) {
+            if (data.ultimaChamada.callId) idsConhecidos.add(data.ultimaChamada.callId);
+            exibirDestaqueChamada(data.ultimaChamada, false);
+          } else if (!data.listas || data.listas.every(l => !l.atual)) {
+            document.getElementById('destaqueCargo').textContent = 'AGUARDANDO CHAMADA';
+            document.getElementById('destaqueNome').textContent = '—';
+            document.getElementById('destaqueAtendente').textContent = 'Fique atento ao painel';
           }
-          ultimoCallId = u.callId;
           primeiraCarga = false;
         } else {
-          primeiraCarga = false;
+          if (!data.ultimaChamada && (!data.listas || data.listas.every(l => !l.atual))) {
+            idsConhecidos.clear();
+            filaChamadas.length = 0;
+            atualizarBadgeFila();
+            document.getElementById('destaqueCargo').textContent = 'AGUARDANDO CHAMADA';
+            document.getElementById('destaqueNome').textContent = '—';
+            document.getElementById('destaqueAtendente').textContent = 'Fique atento ao painel';
+          } else {
+            const novas = recentes
+              .filter(item => item && item.callId && !idsConhecidos.has(item.callId))
+              .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+            if (novas.length > 0) {
+              novas.forEach(item => {
+                idsConhecidos.add(item.callId);
+                filaChamadas.push(item);
+              });
+              processarFilaChamadas();
+            } else if (
+              data.ultimaChamada &&
+              data.ultimaChamada.callId &&
+              !idsConhecidos.has(data.ultimaChamada.callId)
+            ) {
+              idsConhecidos.add(data.ultimaChamada.callId);
+              filaChamadas.push(data.ultimaChamada);
+              processarFilaChamadas();
+            }
+          }
         }
 
         const grid = document.getElementById('gridListas');
