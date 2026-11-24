@@ -30,6 +30,10 @@
     .btn-primary { background: #16a34a; color: #fff; font-size: 1.2rem; }
     .btn-repeat { background: #0284c7; color: #fff; }
     .btn-back { background: #334155; color: #cbd5e1; font-size: 0.9rem; padding: 12px; }
+    .btn-reset {
+      background: transparent; color: #f87171; border: 1px solid #ef4444;
+      font-size: 0.85rem; padding: 11px; margin-top: 4px;
+    }
     .fila-lista { max-height: 200px; overflow-y: auto; font-size: 0.88rem; color: #cbd5e1; padding-left: 18px; }
     .fila-lista li { margin-bottom: 4px; }
     .status-bar { text-align: center; font-size: 0.8rem; color: #94a3b8; margin-top: 6px; }
@@ -60,6 +64,7 @@
     <button class="btn-primary" id="btnChamar" onclick="acao('chamar')">CHAMAR PRÓXIMO</button>
     <button class="btn-repeat" id="btnRepetir" onclick="acao('repetir')">CHAMAR NOVAMENTE</button>
     <button class="btn-back" id="btnVoltar" onclick="acao('voltar')">Voltar 1 posição (correção)</button>
+    <button class="btn-reset" id="btnReset" onclick="reiniciarTudo()">Reiniciar tudo do zero</button>
 
     <div class="card">
       <label>Próximos na fila</label>
@@ -136,7 +141,7 @@
 
       document.getElementById('atualNome').textContent = lista.atual || 'Ninguém chamado';
       document.getElementById('atualInfo').textContent = lista.atual
-        ? `Posição ${lista.indiceAtual} de ${lista.total}${responsavel ? ` • Atendente: ${responsavel}` : ''}`
+        ? `${responsavel ? `Atendente: ${responsavel}` : 'Em atendimento'}`
         : `Total na lista: ${lista.total}`;
 
       document.getElementById('proximoBox').innerHTML = lista.proximo
@@ -146,6 +151,7 @@
       document.getElementById('btnChamar').disabled = !lista.proximo || carregando;
       document.getElementById('btnRepetir').disabled = !lista.atual || carregando;
       document.getElementById('btnVoltar').disabled = lista.indiceAtual === 0 || carregando;
+      document.getElementById('btnReset').disabled = carregando;
 
       const ol = document.getElementById('filaRestante');
       ol.innerHTML = '';
@@ -185,6 +191,33 @@
         document.getElementById('statusBar').textContent = 'Chamada realizada!';
       } catch (e) {
         alert('Falha ao registrar chamada. Verifique a internet.');
+      } finally {
+        carregando = false;
+        renderizar();
+      }
+    }
+
+    async function reiniciarTudo() {
+      if (carregando) return;
+      if (!confirm('Tem certeza que deseja REINICIAR TUDO DO ZERO em todas as listas?')) return;
+
+      carregando = true;
+      renderizar();
+      document.getElementById('statusBar').textContent = 'Reiniciando chamadas...';
+
+      try {
+        const res = await fetch(montarUrl({ action: 'reset' }));
+        const data = await res.json();
+        if (data && data.listas) {
+          estadoGlobal = data;
+          atualizarSelectCargos();
+          document.getElementById('statusBar').textContent = 'Chamadas reiniciadas do zero!';
+        } else {
+          await carregarEstado();
+          document.getElementById('statusBar').textContent = 'Verifique se o reset está configurado no Apps Script.';
+        }
+      } catch (e) {
+        alert('Falha ao reiniciar. Verifique a internet.');
       } finally {
         carregando = false;
         renderizar();
