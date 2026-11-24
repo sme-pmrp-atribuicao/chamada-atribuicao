@@ -40,8 +40,8 @@
     <h1>Controle de Chamada • SME</h1>
 
     <div class="card">
-      <label for="mesaInput">Sua Mesa / Guichê</label>
-      <input type="text" id="mesaInput" placeholder="Ex: Mesa 01" value="Mesa 01" />
+      <label for="atendenteInput">Atendente</label>
+      <input type="text" id="atendenteInput" placeholder="Ex: Ana Paula" value="" />
 
       <label for="cargoSelect">Lista / Cargo Ativo</label>
       <select id="cargoSelect"></select>
@@ -70,16 +70,18 @@
   </div>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbyxBYfub-1kBUYrSyzELTTHtZzcgZN6FpLOBMwDSavQaRic3PS-ByPxwpJrf2kvb9rz/exec";
+    const API_URL = "COLE_AQUI_A_URL_DO_SEU_APPS_SCRIPT";
 
     let estadoGlobal = null;
     let carregando = false;
 
     const cargoSelect = document.getElementById('cargoSelect');
-    const mesaInput = document.getElementById('mesaInput');
+    const atendenteInput = document.getElementById('atendenteInput');
 
-    mesaInput.value = localStorage.getItem('sme_mesa') || 'Mesa 01';
-    mesaInput.addEventListener('change', () => localStorage.setItem('sme_mesa', mesaInput.value));
+    atendenteInput.value = localStorage.getItem('sme_atendente') || '';
+    atendenteInput.addEventListener('change', () => {
+      localStorage.setItem('sme_atendente', atendenteInput.value.trim());
+    });
     cargoSelect.addEventListener('change', () => {
       localStorage.setItem('sme_cargo', cargoSelect.value);
       renderizar();
@@ -130,9 +132,11 @@
       const lista = estadoGlobal.listas.find(l => l.cargo === cargoSelect.value);
       if (!lista) return;
 
+      const responsavel = lista.atendente || lista.mesa || '';
+
       document.getElementById('atualNome').textContent = lista.atual || 'Ninguém chamado';
       document.getElementById('atualInfo').textContent = lista.atual
-        ? `Posição ${lista.indiceAtual} de ${lista.total} • ${lista.mesa}`
+        ? `Posição ${lista.indiceAtual} de ${lista.total}${responsavel ? ` • Atendente: ${responsavel}` : ''}`
         : `Total na lista: ${lista.total}`;
 
       document.getElementById('proximoBox').innerHTML = lista.proximo
@@ -156,7 +160,8 @@
     async function acao(tipo) {
       if (carregando) return;
       const cargo = cargoSelect.value;
-      const mesa = mesaInput.value.trim() || 'Mesa 1';
+      const atendente = atendenteInput.value.trim() || 'Atendente';
+      localStorage.setItem('sme_atendente', atendente);
       if (!cargo) return;
 
       if (tipo === 'voltar' && !confirm('Deseja realmente voltar 1 nome nesta lista?')) return;
@@ -165,7 +170,7 @@
       renderizar();
       document.getElementById('statusBar').textContent = 'Enviando chamada...';
 
-      const params = { cargo, mesa };
+      const params = { cargo, atendente, mesa: atendente };
       if (tipo === 'chamar') params.action = 'chamar';
       if (tipo === 'repetir') {
         params.action = 'chamar';
